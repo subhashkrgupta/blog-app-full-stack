@@ -59,24 +59,53 @@ export const registerUser = async (req, res) => {
 export const loginUser= async (req,res)=>{
     try {
         const {email,password}=req.body;
+        
+        //basic validation
         if(!email || !password){
             return res.status(400).json({
                 message:"email and password are required"
             })
         }
+
+
+        //check user exists or not
         const user = await User.findOne({email})
         if(!user){
             return res.status(400).json({
                 message:"invalid email"
             })
         }
-        if(!bcrypt.compare(password,user.password)){
-            return res.status(400).json({
-                message:"invalid password"
+       //verify password using model method
+        const isPasswrdValid= await user.isPasswordCorrect(password)
+
+
+        if(!isPasswrdValid){
+            return res.status(401).json({
+                message:"Invalid Credentials"
             })
         }
-        return res.status(200).json({
-            message:"user logged in successfully"
+
+        //Generate Tokens
+        const accessToken= user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+
+        //save refresh token in DB
+        user.refreshToken=refreshToken;
+        await user.save({validateBeforeSave:false})
+
+        //cokkie configuration
+        const cookieOptions={
+            httpOnly:true,
+            secure:true,
+            sameSite:"Strict"
+        }
+
+        return res
+        .status(200)
+        .cookie("refreshToken",refreshToken,cookieOptions)
+        .json({
+            message:"user logged in successfully",
+            accessToken
         })
     } catch (error) {
         return res.status(500).json({
