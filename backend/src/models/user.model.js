@@ -15,6 +15,7 @@ const usersSchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
+      lowercase: true,
     },
     password: {
       type: String,
@@ -30,19 +31,25 @@ const usersSchema = new mongoose.Schema(
       type: String,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
-usersSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+
+// 🔐 Hash password before save
+usersSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
+
   this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
+
+// 🔑 Compare password method (for login)
 usersSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
+
+// 🎟 Generate Access Token
 usersSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
@@ -51,14 +58,18 @@ usersSchema.methods.generateAccessToken = function () {
       userName: this.userName,
     },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: "15m" },
+    { expiresIn: "15m" }
   );
 };
 
+
+// 🔁 Generate Refresh Token
 usersSchema.methods.generateRefreshToken = function () {
-  return jwt.sign({ _id: this._id }, process.env.REFRESH_TOKEN_SECRET, {
-    expiresIn: "7d",
-  });
+  return jwt.sign(
+    { _id: this._id },
+    process.env.REFRESH_TOKEN_SECRET,
+    { expiresIn: "7d" }
+  );
 };
 
 export const User = mongoose.model("User", usersSchema);
