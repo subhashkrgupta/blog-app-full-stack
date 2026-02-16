@@ -1,5 +1,5 @@
 import { User } from "../models/user.model.js";
-
+import jwt from 'jsonwebtoken'
 
 export const registerUser = async (req, res) => {
   try {
@@ -39,14 +39,14 @@ export const registerUser = async (req, res) => {
     // await user.save({ validateBeforeSave: false });
 
     // Remove password from response
-    // const createdUser = await User.findById(user._id).select("-password -refreshToken");
+     const createdUser = await User.findById(user._id).select("-password -refreshToken");
 
     return res.status(201).json({
       message: "User registered successfully",
-    //   user: createdUser,
+      user: createdUser,
     //   accessToken,
     //   refreshToken,
-        user
+        // user
     });
 
   } catch (error) {
@@ -106,7 +106,7 @@ export const loginUser= async (req,res)=>{
         .status(200)
         .cookie("refreshToken",refreshToken,cookieOptions)
         .json({
-            message:"user logged in successfully",
+            message:"user login in successfully",
             accessToken
         })
     } catch (error) {
@@ -115,4 +115,82 @@ export const loginUser= async (req,res)=>{
             error:error.message
         })
     }
+}
+
+export const refreshAccessToken = async (req,res)=>{
+  try {
+    
+    //get refresh token from cookies
+    const incomingRefreshtoken = req.cookie?.refreshToken;
+
+    if(!incomingRefreshtoken){
+      return res.status(401).json({
+        message:"Refresh token not found"
+      })
+    }
+
+    //verify refresh token
+    const decodedToekn = jwt.verify(incomingRefreshtoken
+      ,process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById(decodedToekn._id);
+   
+
+    //match refresh token stored in DB
+   if(incomingRefreshtoken !== user.refreshToken){
+    return res.status(401).json({
+      message:"Refresh token expired or reused",
+    })
+   }
+
+   //generat new token
+   const newAccessToken=user.generateAccessToken()
+   const newRefreshToken = user.generateRefreshToken();
+
+   //save new refres toekn in DB
+   user.refreshToken=newRefreshToken;
+   await user.save({validateBeforeSave:false});
+
+   //send new refresh token in cookie
+   const cookieOptions ={
+    httpOnly:true,
+    secure:true,
+    sameSite:"Strict"
+   };
+
+   return res.status(200)
+   .cookie("RefreshToken",newRefreshToken,cookieOptions)
+   .json({
+    message:"Access token refreshed successfully",
+    accessToken:newAccessToken,
+   })
+  } catch (error) {
+    return res.status(401).json({
+      message:"Invalid or expired refresh token",
+      error:error.message
+    })
+  }
+}
+
+
+export const logoutUser = async (req,res)=>{
+ await User.findByIdAndUpdate(req.user._id,
+  {
+    $unset:{refreshToken:1}
+  },
+  {new:true}
+ );
+ const options ={
+  httpOnly:true,
+  secure:true,
+  sameSite: "Strict"
+ }
+
+ return res
+ .status(200)
+ .clearCookie("refreshToken",options)
+ .json({
+  message:"User logged out successfully"
+ })
 }
