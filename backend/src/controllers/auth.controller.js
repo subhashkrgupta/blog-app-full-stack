@@ -18,7 +18,7 @@ export const registerUser = async (req, res) => {
     });
 
     if (existingUser) {
-      return res.status(40).json({
+      return res.status(409).json({
         message: "User already exists",
       });
     }
@@ -95,12 +95,14 @@ export const loginUser= async (req,res)=>{
         user.refreshToken=refreshToken;
         await user.save({validateBeforeSave:false})
 
-        //cokkie configuration
-        const cookieOptions={
-            httpOnly:true,
-            secure:true,
-            sameSite:"Strict"
-        }
+        // Cookie configuration
+        // NOTE: `secure: true` blocks cookies over plain http (common in local dev).
+        const isProd = process.env.NODE_ENV === "production";
+        const cookieOptions = {
+            httpOnly: true,
+            secure: isProd,
+            sameSite: isProd ? "none" : "lax",
+        };
 
         return res
         .status(200)
@@ -121,16 +123,16 @@ export const refreshAccessToken = async (req,res)=>{
   try {
     
     //get refresh token from cookies
-    const incomingRefreshtoken = req.cookie?.refreshToken;
+    const incomingRefreshToken = req.cookies?.refreshToken;
 
-    if(!incomingRefreshtoken){
+    if(!incomingRefreshToken){
       return res.status(401).json({
         message:"Refresh token not found"
       })
     }
 
     //verify refresh token
-    const decodedToekn = jwt.verify(incomingRefreshtoken
+    const decodedToekn = jwt.verify(incomingRefreshToken
       ,process.env.REFRESH_TOKEN_SECRET
     );
 
@@ -138,7 +140,7 @@ export const refreshAccessToken = async (req,res)=>{
    
 
     //match refresh token stored in DB
-   if(incomingRefreshtoken !== user.refreshToken){
+   if(incomingRefreshToken !== user.refreshToken){
     return res.status(401).json({
       message:"Refresh token expired or reused",
     })
@@ -153,14 +155,15 @@ export const refreshAccessToken = async (req,res)=>{
    await user.save({validateBeforeSave:false});
 
    //send new refresh token in cookie
+   const isProd = process.env.NODE_ENV === "production";
    const cookieOptions ={
-    httpOnly:true,
-    secure:true,
-    sameSite:"Strict"
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
    };
 
    return res.status(200)
-   .cookie("RefreshToken",newRefreshToken,cookieOptions)
+   .cookie("refreshToken",newRefreshToken,cookieOptions)
    .json({
     message:"Access token refreshed successfully",
     accessToken:newAccessToken,

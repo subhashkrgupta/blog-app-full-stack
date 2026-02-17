@@ -1,14 +1,45 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, LogIn } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Login = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
 
-  // visual-only submit handler
-  const handleLogin = (e) => {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    alert("Login button clicked! (UI Only)");
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await axios.post('/api/v1/users/login', formData, {
+        withCredentials: true,
+      });
+
+      const accessToken = response?.data?.accessToken;
+      if (accessToken) localStorage.setItem('accessToken', accessToken);
+
+      navigate('/');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,6 +77,8 @@ const Login = () => {
                   autoComplete="email"
                   required
                   placeholder="you@example.com"
+                  value={formData.email}
+                  onChange={handleChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-colors"
                 />
               </div>
@@ -67,6 +100,8 @@ const Login = () => {
                   autoComplete="current-password"
                   required
                   placeholder="••••••••"
+                  value={formData.password}
+                  onChange={handleChange}
                   className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-colors"
                 />
                 <button
@@ -78,6 +113,9 @@ const Login = () => {
                 </button>
               </div>
             </div>
+
+            {/* Error Message */}
+            {error && <p className="text-red-500 text-sm">{error}</p>}
 
             {/* Remember Me & Forgot Password */}
             <div className="flex items-center justify-between">
@@ -104,9 +142,10 @@ const Login = () => {
             <div>
               <button
                 type="submit"
+                disabled={loading}
                 className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform hover:-translate-y-0.5"
               >
-                Sign in <LogIn className="h-4 w-4" />
+                {loading ? 'Signing in...' : 'Sign in'} <LogIn className="h-4 w-4" />
               </button>
             </div>
           </form>
